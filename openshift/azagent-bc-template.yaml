@@ -24,14 +24,6 @@ parameters:
     description: Azure agent version
     value: "2.187.2"
  
-  - name: CUSTOM_CA_B64
-    description: |
-      Optional Base64 encoded CA bundle.
-      To generate:
-      cat cert1.pem cert2.pem > bundle.pem
-      base64 -w 0 bundle.pem
-    required: false
- 
 objects:
  
   - apiVersion: image.openshift.io/v1
@@ -70,6 +62,4 @@ objects:
               value: "${OPENSHIFT_VERSION}"
             - name: AZP_AGENT_VERSION
               value: "${AZP_AGENT_VERSION}"
-            - name: CUSTOM_CA_B64
-              value: "${CUSTOM_CA_B64}"
  
