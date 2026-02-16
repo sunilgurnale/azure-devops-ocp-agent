@@ -6,7 +6,6 @@ ENV AZP_URL=http://dummyurl \
     AZP_TOKEN=token \
     AZP_AGENT_NAME=myagent
  
-# If a working directory was specified, create that directory
 ENV AZP_WORK=/_work
  
 ARG AZP_AGENT_VERSION=2.187.2
@@ -22,7 +21,7 @@ ENV _BUILDAH_STARTED_IN_USERNS="" \
  
 USER root
  
-# Install required packages ONLY (removed dnf upgrade to avoid subscription issues)
+# Install required packages
 RUN dnf install -y --setopt=tsflags=nodocs \
         git \
         skopeo \
@@ -33,7 +32,7 @@ RUN dnf install -y --setopt=tsflags=nodocs \
         --exclude container-selinux && \
     dnf clean all
  
-# Initialize CA trust store (base system)
+# Initialize CA trust store
 RUN update-ca-trust
  
 # Setup directories and permissions
@@ -75,19 +74,22 @@ RUN chmod +x ./bin/installdependencies.sh && \
  
 WORKDIR $HOME
  
-# ---- ONLY CHANGE FOR CONFIGMAP CA SUPPORT ----
-# At container start, refresh trust store so mounted CA from:
-# /etc/pki/ca-trust/source/anchors/custom-ca.crt
-# becomes trusted.
- 
-ENTRYPOINT /bin/bash -c 'update-ca-trust && \
+# ---- CONFIGMAP CA SUPPORT ----
+# We do NOT change logic.
+# We only ensure trust store refresh at container start.
+ENTRYPOINT ["/bin/bash", "-c", "\
+if [ -f /etc/pki/ca-trust/source/anchors/custom-ca.crt ]; then \
+  echo 'Custom CA found. Updating trust...'; \
+  update-ca-trust; \
+fi && \
 /azp/agent/bin/Agent.Listener configure --unattended \
-  --agent "${AZP_AGENT_NAME}-${MY_POD_NAME}" \
-  --url "$AZP_URL" \
+  --agent \"${AZP_AGENT_NAME}-${MY_POD_NAME}\" \
+  --url \"$AZP_URL\" \
   --auth PAT \
-  --token "$AZP_TOKEN" \
-  --pool "${AZP_POOL}" \
+  --token \"$AZP_TOKEN\" \
+  --pool \"${AZP_POOL}\" \
   --work /_work \
   --replace \
   --acceptTeeEula && \
-/azp/agent/externals/node/bin/node /azp/agent/bin/AgentService.js interactive --once'
+/azp/agent/externals/node/bin/node /azp/agent/bin/AgentService.js interactive --once \
+"]
