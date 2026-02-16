@@ -3,12 +3,10 @@ kind: Template
 metadata:
   name: azure-devops-ocp-agent-bc-template
   annotations:
-    description: "Azure Devops Openshift self hosted agent buildconfig"
-  tags: "azure-devops-ocp-agent"
-  iconClass: icon-dotnet
-  description: "Build your custom Azure Agent for an OpenShift cluster."
+    description: "Azure Devops OpenShift self hosted agent buildconfig with optional custom CA bundle"
  
 parameters:
+ 
   - name: NAMESPACE
     description: Namespace name
     required: true
@@ -16,18 +14,22 @@ parameters:
   - name: GIT_URL
     description: GIT URL For Dockerfile
     required: true
-    value: https://github.com/sunilgurnale/azure-devops-ocp-agent.git
+    value: https://github.com/bfarr-rh/azure-devops-ocp-agent.git
  
   - name: OPENSHIFT_VERSION
-    description: OpenShift client binary version to install
+    description: OpenShift client binary version
     value: "4.9.7"
  
   - name: AZP_AGENT_VERSION
-    description: Azure agent install version
+    description: Azure agent version
     value: "2.187.2"
  
-  - name: CUSTOM_CA_CERT
-    description: "Optional custom CA certificate (PEM format)"
+  - name: CUSTOM_CA_B64
+    description: |
+      Optional Base64 encoded CA bundle.
+      To generate:
+      cat cert1.pem cert2.pem > bundle.pem
+      base64 -w 0 bundle.pem
     required: false
  
 objects:
@@ -35,8 +37,6 @@ objects:
   - apiVersion: image.openshift.io/v1
     kind: ImageStream
     metadata:
-      labels:
-        build: azure-devops-ocp-agent
       name: azure-devops-ocp-agent
       namespace: "${NAMESPACE}"
     spec:
@@ -46,11 +46,10 @@ objects:
   - apiVersion: build.openshift.io/v1
     kind: BuildConfig
     metadata:
-      labels:
-        build: azure-devops-ocp-agent
       name: azure-devops-ocp-agent
       namespace: "${NAMESPACE}"
     spec:
+ 
       source:
         git:
           uri: ${GIT_URL}
@@ -62,6 +61,7 @@ objects:
           name: azure-devops-ocp-agent:latest
  
       strategy:
+        type: Docker
         dockerStrategy:
           dockerfilePath: Dockerfile
           imageOptimizationPolicy: SkipLayers
@@ -70,7 +70,6 @@ objects:
               value: "${OPENSHIFT_VERSION}"
             - name: AZP_AGENT_VERSION
               value: "${AZP_AGENT_VERSION}"
-            - name: CUSTOM_CA_CERT
-              value: "${CUSTOM_CA_CERT}"
-        type: Docker
+            - name: CUSTOM_CA_B64
+              value: "${CUSTOM_CA_B64}"
  
