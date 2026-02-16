@@ -21,11 +21,10 @@ USER root
 # Install required packages
 RUN dnf install -y --setopt=tsflags=nodocs \
         git \
-        skopeo \
-        podman-docker \
         curl \
         tar \
         ca-certificates \
+        podman-docker --skip-broken\
         --exclude container-selinux && \
     dnf clean all && \
     mkdir -p "$AZP_WORK" && \
