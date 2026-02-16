@@ -43,10 +43,14 @@ RUN curl -L https://download.agent.dev.azure.com/agent/${AZP_AGENT_VERSION}/vsts
     rm -f agent.tar.gz
  
 # Install agent dependencies
-RUN ./bin/installdependencies.sh
- 
+RUN  /bin/bash -c './bin/installdependencies.sh' && \
+    chmod -R 775 "$AZP_WORK" && \
+    chown -R podman:root "$AZP_WORK" && \
+    chmod -R 775 /azp && \
+    chown -R podman:root /azp
+
 USER 1001
- 
+
 # ---- ONLY CHANGE: Refresh trust at container startup ----
 ENTRYPOINT ["/bin/bash", "-c", "\
 update-ca-trust && \
