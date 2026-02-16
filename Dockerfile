@@ -1,74 +1,57 @@
 FROM registry.access.redhat.com/ubi8/dotnet-60-runtime:latest
-
-# These should be overridden in template deployment to interact with Azure service
+ 
+# Azure DevOps defaults (override at runtime)
 ENV AZP_URL=http://dummyurl \
     AZP_POOL=Default \
     AZP_TOKEN=token \
-    AZP_AGENT_NAME=myagent
-# If a working directory was specified, create that directory
-ENV AZP_WORK=/_work
-ARG AZP_AGENT_VERSION=2.187.2
-ARG OPENSHIFT_VERSION=4.9.7
-ENV OPENSHIFT_BINARY_FILE="openshift-client-linux-${OPENSHIFT_VERSION}.tar.gz"
-ENV OPENSHIFT_4_CLIENT_BINARY_URL=https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_VERSION}/${OPENSHIFT_BINARY_FILE}
+    AZP_AGENT_NAME=myagent \
+    AZP_WORK=/_work
+ 
 ENV _BUILDAH_STARTED_IN_USERNS="" \
     BUILDAH_ISOLATION=chroot \
     STORAGE_DRIVER=vfs \
-    HOME=/home/podman
-
+    HOME=/home/default
+ 
+ARG AZP_AGENT_VERSION=4.269.0
+ 
 USER root
-
-# Setup for azure and tools
-RUN dnf upgrade -y && \
-    dnf install -y --setopt=tsflags=nodocs git skopeo podman-docker --exclude container-selinux && \
-    dnf clean all && \
-    chown -R podman:0 /home/podman && \
-    chmod -R 775 /home/podman && \
-    chmod -R 775 /etc/alternatives && \
-    chmod -R 775 /var/lib/alternatives && \
-    chmod -R 775 /usr/bin && \
-    chmod 775 /usr/share/man/man1 && \
-    mkdir -p /var/lib/origin && \
-    chmod 775 /var/lib/origin && \
-    chmod u-s /usr/bin/newuidmap && \
-    chmod u-s /usr/bin/newgidmap && \
-    rm -f /var/logs/* && \
-    mkdir -p "$AZP_WORK" && \
-    mkdir -p /azp/agent/_diag && \
-    mkdir -p /usr/local/bin
-
+ 
+# Install only required packages (no upgrade)
+RUN dnf install -y --setopt=tsflags=nodocs \
+        git \
+        curl \
+        tar \
+        jq \
+    && dnf clean all
+ 
+# Create work directory
+RUN mkdir -p "$AZP_WORK" && \
+    mkdir -p /azp/agent && \
+    chmod -R g=u /azp && \
+    chmod -R g=u "$AZP_WORK"
+ 
 WORKDIR /azp/agent
-
-# Get the oc binary
-RUN curl  ${OPENSHIFT_4_CLIENT_BINARY_URL} > ${OPENSHIFT_BINARY_FILE} && \
-    tar xzf ${OPENSHIFT_BINARY_FILE} -C /usr/local/bin && \
-    rm -rf ${OPENSHIFT_BINARY_FILE} && \
-    chmod +x /usr/local/bin/oc
-
-# Download and extract the agent package
-RUN curl https://vstsagentpackage.azureedge.net/agent/$AZP_AGENT_VERSION/vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz > vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz && \
-    tar zxvf vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz && \
-    rm -rf vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz 
-
-# Install the agent software
-RUN /bin/bash -c 'chmod +x ./bin/installdependencies.sh' && \
-    /bin/bash -c './bin/installdependencies.sh' && \
-    chmod -R 775 "$AZP_WORK" && \
-    chown -R podman:root "$AZP_WORK" && \
-    chmod -R 775 /azp && \
-    chown -R podman:root /azp
-
-WORKDIR $HOME
-USER 1000
-
-# AgentService.js understands how to handle agent self-update and restart
-ENTRYPOINT /bin/bash -c '/azp/agent/bin/Agent.Listener configure --unattended \
-  --agent "${AZP_AGENT_NAME}-${MY_POD_NAME}" \
-  --url "$AZP_URL" \
+ 
+# Download Azure DevOps agent
+RUN curl -L https://download.agent.dev.azure.com/agent/${AZP_AGENT_VERSION}/vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz \
+    -o agent.tar.gz && \
+    tar zxvf agent.tar.gz && \
+    rm -f agent.tar.gz
+ 
+# Install agent dependencies
+RUN ./bin/installdependencies.sh
+ 
+USER 1001
+ 
+ENTRYPOINT ["/bin/bash", "-c", "\
+./bin/Agent.Listener configure --unattended \
+  --agent \"${AZP_AGENT_NAME}-${HOSTNAME}\" \
+  --url \"$AZP_URL\" \
   --auth PAT \
-  --token "$AZP_TOKEN" \
-  --pool "${AZP_POOL}" \
-  --work /_work \
+  --token \"$AZP_TOKEN\" \
+  --pool \"$AZP_POOL\" \
+  --work \"$AZP_WORK\" \
   --replace \
   --acceptTeeEula && \
-   /azp/agent/externals/node/bin/node /azp/agent/bin/AgentService.js interactive --once'
+./bin/Agent.Listener run --once \
+"]
