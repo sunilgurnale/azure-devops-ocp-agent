@@ -1,18 +1,17 @@
 FROM registry.access.redhat.com/ubi8/dotnet-60-runtime:latest
  
-# These should be overridden in template deployment to interact with Azure service
+# These should be overridden in template deployment
 ENV AZP_URL=http://dummyurl \
     AZP_POOL=Default \
     AZP_TOKEN=token \
-    AZP_AGENT_NAME=myagent
- 
-ENV AZP_WORK=/_work
+    AZP_AGENT_NAME=myagent \
+    AZP_WORK=/_work
  
 ARG AZP_AGENT_VERSION=2.187.2
 ARG OPENSHIFT_VERSION=4.9.7
  
 ENV OPENSHIFT_BINARY_FILE="openshift-client-linux-${OPENSHIFT_VERSION}.tar.gz"
-ENV OPENSHIFT_4_CLIENT_BINARY_URL=https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_VERSION}/${OPENSHIFT_BINARY_FILE}
+ENV OPENSHIFT_4_CLIENT_BINARY_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_VERSION}/${OPENSHIFT_BINARY_FILE}"
  
 ENV _BUILDAH_STARTED_IN_USERNS="" \
     BUILDAH_ISOLATION=chroot \
@@ -35,48 +34,41 @@ RUN dnf install -y --setopt=tsflags=nodocs \
 # Initialize CA trust store
 RUN update-ca-trust
  
-# Setup directories and permissions
-RUN chown -R podman:0 /home/podman && \
-    chmod -R 775 /home/podman && \
-    chmod -R 775 /etc/alternatives && \
-    chmod -R 775 /var/lib/alternatives && \
-    chmod -R 775 /usr/bin && \
-    chmod 775 /usr/share/man/man1 && \
-    mkdir -p /var/lib/origin && \
-    chmod 775 /var/lib/origin && \
-    chmod u-s /usr/bin/newuidmap && \
-    chmod u-s /usr/bin/newgidmap && \
-    mkdir -p "$AZP_WORK" && \
-    mkdir -p /azp/agent/_diag && \
-    mkdir -p /usr/local/bin
+# Setup directories and OpenShift-safe permissions
+RUN mkdir -p /home/podman \
+             /var/lib/origin \
+             /usr/local/bin \
+             /azp/agent/_diag \
+             ${AZP_WORK} && \
+    chgrp -R 0 /home/podman /var/lib/origin /azp ${AZP_WORK} && \
+    chmod -R g+rwX /home/podman /var/lib/origin /azp ${AZP_WORK} && \
+    chmod -R g=u /home/podman /var/lib/origin /azp ${AZP_WORK} && \
+    chmod u-s /usr/bin/newuidmap /usr/bin/newgidmap
  
 WORKDIR /azp/agent
  
-# Get the oc binary
-RUN curl ${OPENSHIFT_4_CLIENT_BINARY_URL} > ${OPENSHIFT_BINARY_FILE} && \
+# Install oc client
+RUN curl -L ${OPENSHIFT_4_CLIENT_BINARY_URL} -o ${OPENSHIFT_BINARY_FILE} && \
     tar xzf ${OPENSHIFT_BINARY_FILE} -C /usr/local/bin && \
-    rm -rf ${OPENSHIFT_BINARY_FILE} && \
+    rm -f ${OPENSHIFT_BINARY_FILE} && \
     chmod +x /usr/local/bin/oc
  
-# Download and extract the agent package
-RUN curl https://vstsagentpackage.azureedge.net/agent/${AZP_AGENT_VERSION}/vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz \
-    > vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz && \
+# Download Azure DevOps agent
+RUN curl -L https://vstsagentpackage.azureedge.net/agent/${AZP_AGENT_VERSION}/vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz \
+    -o vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz && \
     tar zxvf vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz && \
-    rm -rf vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz
+    rm -f vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz
  
-# Install the agent software
+# Install agent dependencies
 RUN chmod +x ./bin/installdependencies.sh && \
     ./bin/installdependencies.sh && \
-    chmod -R g=u "$AZP_WORK" && \
-    chown -R 0 "$AZP_WORK" && \
-    chmod -R g=u /azp && \
-    chown -R 0 /azp
+    chgrp -R 0 /azp ${AZP_WORK} && \
+    chmod -R g+rwX /azp ${AZP_WORK} && \
+    chmod -R g=u /azp ${AZP_WORK}
  
-WORKDIR $HOME
+WORKDIR ${HOME}
  
 # ---- CONFIGMAP CA SUPPORT ----
-# We do NOT change logic.
-# We only ensure trust store refresh at container start.
 ENTRYPOINT ["/bin/bash", "-c", "\
 if [ -f /etc/pki/ca-trust/source/anchors/custom-ca.crt ]; then \
   echo 'Custom CA found. Updating trust...'; \
@@ -88,7 +80,7 @@ fi && \
   --auth PAT \
   --token \"$AZP_TOKEN\" \
   --pool \"${AZP_POOL}\" \
-  --work /_work \
+  --work \"${AZP_WORK}\" \
   --replace \
   --acceptTeeEula && \
 /azp/agent/externals/node/bin/node /azp/agent/bin/AgentService.js interactive --once \
