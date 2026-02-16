@@ -1,67 +1,95 @@
 FROM registry.access.redhat.com/ubi8/dotnet-60-runtime:latest
  
-# Azure DevOps defaults (override at runtime)
+# These should be overridden in template deployment to interact with Azure service
 ENV AZP_URL=http://dummyurl \
     AZP_POOL=Default \
     AZP_TOKEN=token \
-    AZP_AGENT_NAME=myagent \
-    AZP_WORK=/_work
+    AZP_AGENT_NAME=myagent
+ 
+# If a working directory was specified, create that directory
+ENV AZP_WORK=/_work
+ 
+ARG AZP_AGENT_VERSION=2.187.2
+ARG OPENSHIFT_VERSION=4.9.7
+ 
+ENV OPENSHIFT_BINARY_FILE="openshift-client-linux-${OPENSHIFT_VERSION}.tar.gz"
+ENV OPENSHIFT_4_CLIENT_BINARY_URL=https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_VERSION}/${OPENSHIFT_BINARY_FILE}
  
 ENV _BUILDAH_STARTED_IN_USERNS="" \
     BUILDAH_ISOLATION=chroot \
     STORAGE_DRIVER=vfs \
-    HOME=/home/default
- 
-ARG AZP_AGENT_VERSION=4.269.0
+    HOME=/home/podman
  
 USER root
  
-# Install only required packages (no upgrade)
+# Install required packages ONLY (removed dnf upgrade to avoid subscription issues)
 RUN dnf install -y --setopt=tsflags=nodocs \
-    git \
-    curl \
-    tar \
-    jq \
-    ca-certificates \
-    && dnf clean all
+        git \
+        skopeo \
+        podman-docker \
+        curl \
+        tar \
+        ca-certificates \
+        --exclude container-selinux && \
+    dnf clean all
  
-# Ensure base trust store exists
+# Initialize CA trust store (base system)
 RUN update-ca-trust
  
-# Create work directory
-RUN mkdir -p "$AZP_WORK" && \
-    mkdir -p /azp/agent && \
-    chmod -R g=u /azp && \
-    chmod -R g=u "$AZP_WORK"
+# Setup directories and permissions
+RUN chown -R podman:0 /home/podman && \
+    chmod -R 775 /home/podman && \
+    chmod -R 775 /etc/alternatives && \
+    chmod -R 775 /var/lib/alternatives && \
+    chmod -R 775 /usr/bin && \
+    chmod 775 /usr/share/man/man1 && \
+    mkdir -p /var/lib/origin && \
+    chmod 775 /var/lib/origin && \
+    chmod u-s /usr/bin/newuidmap && \
+    chmod u-s /usr/bin/newgidmap && \
+    mkdir -p "$AZP_WORK" && \
+    mkdir -p /azp/agent/_diag && \
+    mkdir -p /usr/local/bin
  
 WORKDIR /azp/agent
  
-# Download Azure DevOps agent
-RUN curl -L https://download.agent.dev.azure.com/agent/${AZP_AGENT_VERSION}/vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz \
-    -o agent.tar.gz && \
-    tar zxvf agent.tar.gz && \
-    rm -f agent.tar.gz
+# Get the oc binary
+RUN curl ${OPENSHIFT_4_CLIENT_BINARY_URL} > ${OPENSHIFT_BINARY_FILE} && \
+    tar xzf ${OPENSHIFT_BINARY_FILE} -C /usr/local/bin && \
+    rm -rf ${OPENSHIFT_BINARY_FILE} && \
+    chmod +x /usr/local/bin/oc
  
-# Install agent dependencies
-RUN  /bin/bash -c './bin/installdependencies.sh' && \
+# Download and extract the agent package
+RUN curl https://vstsagentpackage.azureedge.net/agent/${AZP_AGENT_VERSION}/vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz \
+    > vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz && \
+    tar zxvf vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz && \
+    rm -rf vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz
+ 
+# Install the agent software
+RUN chmod +x ./bin/installdependencies.sh && \
+    ./bin/installdependencies.sh && \
     chmod -R 775 "$AZP_WORK" && \
     chown -R podman:root "$AZP_WORK" && \
     chmod -R 775 /azp && \
     chown -R podman:root /azp
-
-USER 1001
-
-# ---- ONLY CHANGE: Refresh trust at container startup ----
-ENTRYPOINT ["/bin/bash", "-c", "\
-update-ca-trust && \
-./bin/Agent.Listener configure --unattended \
-  --agent \"${AZP_AGENT_NAME}-${HOSTNAME}\" \
-  --url \"$AZP_URL\" \
+ 
+WORKDIR $HOME
+ 
+USER 1000
+ 
+# ---- ONLY CHANGE FOR CONFIGMAP CA SUPPORT ----
+# At container start, refresh trust store so mounted CA from:
+# /etc/pki/ca-trust/source/anchors/custom-ca.crt
+# becomes trusted.
+ 
+ENTRYPOINT /bin/bash -c 'update-ca-trust && \
+/azp/agent/bin/Agent.Listener configure --unattended \
+  --agent "${AZP_AGENT_NAME}-${MY_POD_NAME}" \
+  --url "$AZP_URL" \
   --auth PAT \
-  --token \"$AZP_TOKEN\" \
-  --pool \"$AZP_POOL\" \
-  --work \"$AZP_WORK\" \
+  --token "$AZP_TOKEN" \
+  --pool "${AZP_POOL}" \
+  --work /_work \
   --replace \
   --acceptTeeEula && \
-./bin/Agent.Listener run --once \
-"]
+/azp/agent/externals/node/bin/node /azp/agent/bin/AgentService.js interactive --once'
