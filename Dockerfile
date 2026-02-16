@@ -7,8 +7,8 @@ ENV AZP_URL=http://dummyurl \
     AZP_AGENT_NAME=myagent
 # If a working directory was specified, create that directory
 ENV AZP_WORK=/_work
-ARG AZP_AGENT_VERSION=2.187.2
-ARG OPENSHIFT_VERSION=4.9.7
+ARG AZP_AGENT_VERSION=4.269.0
+ARG OPENSHIFT_VERSION=4.19.23
 ENV OPENSHIFT_BINARY_FILE="openshift-client-linux-${OPENSHIFT_VERSION}.tar.gz"
 ENV OPENSHIFT_4_CLIENT_BINARY_URL=https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_VERSION}/${OPENSHIFT_BINARY_FILE}
 ENV _BUILDAH_STARTED_IN_USERNS="" \
@@ -44,7 +44,8 @@ RUN curl  ${OPENSHIFT_4_CLIENT_BINARY_URL} > ${OPENSHIFT_BINARY_FILE} && \
     chmod +x /usr/local/bin/oc
 
 # Download and extract the agent package
-RUN curl https://vstsagentpackage.azureedge.net/agent/$AZP_AGENT_VERSION/vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz > vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz && \
+RUN curl -L https://download.agent.dev.azure.com/agent/${AZP_AGENT_VERSION}/vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz \
+    -o vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz > vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz && \
     tar zxvf vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz && \
     rm -rf vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz 
 
