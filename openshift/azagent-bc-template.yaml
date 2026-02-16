@@ -14,7 +14,7 @@ parameters:
   - name: GIT_URL
     description: GIT URL For Dockerfile
     required: true
-    value: https://github.com/bfarr-rh/azure-devops-ocp-agent.git
+    value: https://github.com/sunilgurnale/azure-devops-ocp-agent.git
  
   - name: OPENSHIFT_VERSION
     description: OpenShift client binary version
