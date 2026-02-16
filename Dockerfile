@@ -68,14 +68,12 @@ RUN curl https://vstsagentpackage.azureedge.net/agent/${AZP_AGENT_VERSION}/vsts-
 # Install the agent software
 RUN chmod +x ./bin/installdependencies.sh && \
     ./bin/installdependencies.sh && \
-    chmod -R 775 "$AZP_WORK" && \
-    chown -R podman:root "$AZP_WORK" && \
-    chmod -R 775 /azp && \
-    chown -R podman:root /azp
+    chmod -R g=u "$AZP_WORK" && \
+    chown -R 0 "$AZP_WORK" && \
+    chmod -R g=u /azp && \
+    chown -R 0 /azp
  
 WORKDIR $HOME
- 
-USER 1000
  
 # ---- ONLY CHANGE FOR CONFIGMAP CA SUPPORT ----
 # At container start, refresh trust store so mounted CA from:
