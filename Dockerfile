@@ -30,12 +30,7 @@ RUN dnf install -y --setopt=tsflags=nodocs \
     mkdir -p "$AZP_WORK" && \
     mkdir -p /azp/agent/_diag && \
     chmod -R 775 /azp/agent/_diag && \
-    chmod 755 *.sh && chown -R default:root . && \
-    touch /etc/containers/nodocker && \
-    usermod --add-subuids 100000-165535 default && \
-    usermod --add-subgids 100000-165535 default && \
-    setcap cap_setuid+eip /usr/bin/newuidmap && \
-    setcap cap_setgid+eip /usr/bin/newgidmap
+    chmod 755 *.sh && chown -R default:root .
 
 # Initialize CA trust store
 RUN update-ca-trust
