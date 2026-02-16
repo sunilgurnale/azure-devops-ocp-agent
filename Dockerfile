@@ -32,7 +32,7 @@ RUN dnf install -y --setopt=tsflags=nodocs \
     chmod 755 *.sh && chown -R default:root .
 
 # Initialize CA trust store
-RUN update-ca-trust
+# RUN update-ca-trust
 
 WORKDIR /azp/agent
 
@@ -60,12 +60,7 @@ WORKDIR $HOME
 USER 1001
 
 # AgentService.js understands how to handle agent self-update and restart
-# ---- CONFIGMAP CA SUPPORT ----
 ENTRYPOINT ["/bin/bash", "-c", "\
-if [ -f /etc/pki/ca-trust/source/anchors/custom-ca.crt ]; then \
-  echo 'Custom CA found. Updating trust...'; \
-  update-ca-trust; \
-fi && \
 /azp/agent/bin/Agent.Listener configure --unattended \
   --agent \"${AZP_AGENT_NAME}-${MY_POD_NAME}\" \
   --url \"$AZP_URL\" \
@@ -74,6 +69,7 @@ fi && \
   --pool \"${AZP_POOL}\" \
   --work \"${AZP_WORK}\" \
   --replace \
+  --sslskipcertvalidation \
   --acceptTeeEula && \
 /azp/agent/externals/node/bin/node /azp/agent/bin/AgentService.js interactive --once \
 "]
