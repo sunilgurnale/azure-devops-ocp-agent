@@ -84,6 +84,7 @@ objects:
         - name: custom-ca
           configMap:
             name: "${CA_CONFIGMAP_NAME}"
+            defaultMode: 0444
  
         containers:
         - name: azure-devops-ocp-agent
@@ -92,7 +93,7 @@ objects:
  
           volumeMounts:
           - name: custom-ca
-            mountPath: /usr/local/share/ca-certificates/custom-ca.crt
+            mountPath: /etc/pki/ca-trust/source/anchors/custom-ca.crt
             subPath: custom-ca.crt
             readOnly: true
  
