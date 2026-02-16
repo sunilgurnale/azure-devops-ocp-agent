@@ -13,13 +13,13 @@ ENV _BUILDAH_STARTED_IN_USERNS="" \
     HOME=/home/default
  
 ARG AZP_AGENT_VERSION=4.269.0
-ARG CUSTOM_CA_CERT
-
+ARG CUSTOM_CA_B64
+ 
 USER root
  
-# Add custom CA if provided
-RUN if [ -n "$CUSTOM_CA_CERT" ]; then \
-      echo "$CUSTOM_CA_CERT" > /etc/pki/ca-trust/source/anchors/custom-ca.crt && \
+# Inject custom CA bundle if provided
+RUN if [ -n "$CUSTOM_CA_B64" ]; then \
+      echo "$CUSTOM_CA_B64" | base64 -d > /etc/pki/ca-trust/source/anchors/custom-ca.crt && \
       update-ca-trust; \
     fi
  
