@@ -14,7 +14,6 @@ ENV OPENSHIFT_4_CLIENT_BINARY_URL=https://mirror.openshift.com/pub/openshift-v4/
 ENV _BUILDAH_STARTED_IN_USERNS="" \
     BUILDAH_ISOLATION=chroot \
     STORAGE_DRIVER=vfs \
-    HOME=/home/podman
 
 USER root
 
@@ -53,9 +52,9 @@ RUN curl -L https://download.agent.dev.azure.com/agent/${AZP_AGENT_VERSION}/vsts
 RUN /bin/bash -c 'chmod +x ./bin/installdependencies.sh' && \
     /bin/bash -c './bin/installdependencies.sh' && \
     chmod -R 775 "$AZP_WORK" && \
-    chown -R podman:root "$AZP_WORK" && \
+    chown -R default:root "$AZP_WORK" && \
     chmod -R 775 /azp && \
-    chown -R podman:root /azp
+    chown -R default:root /azp
 
 WORKDIR $HOME
 USER 1001
