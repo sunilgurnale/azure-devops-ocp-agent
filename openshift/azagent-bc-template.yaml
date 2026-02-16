@@ -18,11 +18,11 @@ parameters:
  
   - name: OPENSHIFT_VERSION
     description: OpenShift client binary version
-    value: "4.9.7"
+    value: "4.19.23"
  
   - name: AZP_AGENT_VERSION
     description: Azure agent version
-    value: "2.187.2"
+    value: "4.269.0"
  
 objects:
  
