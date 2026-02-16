@@ -1,25 +1,23 @@
 FROM registry.access.redhat.com/ubi8/dotnet-60-runtime:latest
- 
-# These should be overridden in template deployment
+
+# These should be overridden in template deployment to interact with Azure service
 ENV AZP_URL=http://dummyurl \
     AZP_POOL=Default \
     AZP_TOKEN=token \
-    AZP_AGENT_NAME=myagent \
-    AZP_WORK=/_work
- 
+    AZP_AGENT_NAME=myagent
+# If a working directory was specified, create that directory
+ENV AZP_WORK=/_work
 ARG AZP_AGENT_VERSION=2.187.2
 ARG OPENSHIFT_VERSION=4.9.7
- 
 ENV OPENSHIFT_BINARY_FILE="openshift-client-linux-${OPENSHIFT_VERSION}.tar.gz"
-ENV OPENSHIFT_4_CLIENT_BINARY_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_VERSION}/${OPENSHIFT_BINARY_FILE}"
- 
+ENV OPENSHIFT_4_CLIENT_BINARY_URL=https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_VERSION}/${OPENSHIFT_BINARY_FILE}
 ENV _BUILDAH_STARTED_IN_USERNS="" \
     BUILDAH_ISOLATION=chroot \
     STORAGE_DRIVER=vfs \
     HOME=/home/podman
- 
+
 USER root
- 
+
 # Install required packages
 RUN dnf install -y --setopt=tsflags=nodocs \
         git \
@@ -29,45 +27,50 @@ RUN dnf install -y --setopt=tsflags=nodocs \
         tar \
         ca-certificates \
         --exclude container-selinux && \
-    dnf clean all
- 
+    dnf clean all && \
+    chown -R podman:0 /home/podman && \
+    chmod -R 775 /home/podman && \
+    chmod -R 775 /etc/alternatives && \
+    chmod -R 775 /var/lib/alternatives && \
+    chmod -R 775 /usr/bin && \
+    chmod 775 /usr/share/man/man1 && \
+    mkdir -p /var/lib/origin && \
+    chmod 775 /var/lib/origin && \
+    chmod u-s /usr/bin/newuidmap && \
+    chmod u-s /usr/bin/newgidmap && \
+    rm -f /var/logs/* && \
+    mkdir -p "$AZP_WORK" && \
+    mkdir -p /azp/agent/_diag && \
+    mkdir -p /usr/local/bin
+
 # Initialize CA trust store
 RUN update-ca-trust
- 
-# Setup directories and OpenShift-safe permissions
-RUN mkdir -p /home/podman \
-             /var/lib/origin \
-             /usr/local/bin \
-             /azp/agent/_diag \
-             ${AZP_WORK} && \
-    chgrp -R 0 /home/podman /var/lib/origin /azp ${AZP_WORK} && \
-    chmod -R g+rwX /home/podman /var/lib/origin /azp ${AZP_WORK} && \
-    chmod -R g=u /home/podman /var/lib/origin /azp ${AZP_WORK} && \
-    chmod u-s /usr/bin/newuidmap /usr/bin/newgidmap
- 
+
 WORKDIR /azp/agent
- 
-# Install oc client
-RUN curl -L ${OPENSHIFT_4_CLIENT_BINARY_URL} -o ${OPENSHIFT_BINARY_FILE} && \
+
+# Get the oc binary
+RUN curl  ${OPENSHIFT_4_CLIENT_BINARY_URL} > ${OPENSHIFT_BINARY_FILE} && \
     tar xzf ${OPENSHIFT_BINARY_FILE} -C /usr/local/bin && \
-    rm -f ${OPENSHIFT_BINARY_FILE} && \
+    rm -rf ${OPENSHIFT_BINARY_FILE} && \
     chmod +x /usr/local/bin/oc
- 
-# Download Azure DevOps agent
-RUN curl -L https://vstsagentpackage.azureedge.net/agent/${AZP_AGENT_VERSION}/vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz \
-    -o vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz && \
-    tar zxvf vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz && \
-    rm -f vsts-agent-linux-x64-${AZP_AGENT_VERSION}.tar.gz
- 
-# Install agent dependencies
-RUN chmod +x ./bin/installdependencies.sh && \
-    ./bin/installdependencies.sh && \
-    chgrp -R 0 /azp ${AZP_WORK} && \
-    chmod -R g+rwX /azp ${AZP_WORK} && \
-    chmod -R g=u /azp ${AZP_WORK}
- 
-WORKDIR ${HOME}
- 
+
+# Download and extract the agent package
+RUN curl https://vstsagentpackage.azureedge.net/agent/$AZP_AGENT_VERSION/vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz > vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz && \
+    tar zxvf vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz && \
+    rm -rf vsts-agent-linux-x64-$AZP_AGENT_VERSION.tar.gz 
+
+# Install the agent software
+RUN /bin/bash -c 'chmod +x ./bin/installdependencies.sh' && \
+    /bin/bash -c './bin/installdependencies.sh' && \
+    chmod -R 775 "$AZP_WORK" && \
+    chown -R podman:root "$AZP_WORK" && \
+    chmod -R 775 /azp && \
+    chown -R podman:root /azp
+
+WORKDIR $HOME
+USER 1000
+
+# AgentService.js understands how to handle agent self-update and restart
 # ---- CONFIGMAP CA SUPPORT ----
 ENTRYPOINT ["/bin/bash", "-c", "\
 if [ -f /etc/pki/ca-trust/source/anchors/custom-ca.crt ]; then \
