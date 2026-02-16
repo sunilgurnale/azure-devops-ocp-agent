@@ -16,10 +16,6 @@ ARG AZP_AGENT_VERSION=4.269.0
 ARG CUSTOM_CA_CERT
 
 USER root
-
-ARG CUSTOM_CA_CERT
- 
-USER root
  
 # Add custom CA if provided
 RUN if [ -n "$CUSTOM_CA_CERT" ]; then \
