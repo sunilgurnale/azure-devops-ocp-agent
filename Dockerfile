@@ -28,20 +28,15 @@ RUN dnf install -y --setopt=tsflags=nodocs \
         ca-certificates \
         --exclude container-selinux && \
     dnf clean all && \
-    chown -R podman:0 /home/podman && \
-    chmod -R 775 /home/podman && \
-    chmod -R 775 /etc/alternatives && \
-    chmod -R 775 /var/lib/alternatives && \
-    chmod -R 775 /usr/bin && \
-    chmod 775 /usr/share/man/man1 && \
-    mkdir -p /var/lib/origin && \
-    chmod 775 /var/lib/origin && \
-    chmod u-s /usr/bin/newuidmap && \
-    chmod u-s /usr/bin/newgidmap && \
-    rm -f /var/logs/* && \
     mkdir -p "$AZP_WORK" && \
     mkdir -p /azp/agent/_diag && \
-    mkdir -p /usr/local/bin
+    chmod -R 775 /azp/agent/_diag && \
+    chmod 755 *.sh && chown -R default:root . && \
+    touch /etc/containers/nodocker && \
+    usermod --add-subuids 100000-165535 default && \
+    usermod --add-subgids 100000-165535 default && \
+    setcap cap_setuid+eip /usr/bin/newuidmap && \
+    setcap cap_setgid+eip /usr/bin/newgidmap
 
 # Initialize CA trust store
 RUN update-ca-trust
@@ -68,7 +63,7 @@ RUN /bin/bash -c 'chmod +x ./bin/installdependencies.sh' && \
     chown -R podman:root /azp
 
 WORKDIR $HOME
-USER 1000
+USER 1001
 
 # AgentService.js understands how to handle agent self-update and restart
 # ---- CONFIGMAP CA SUPPORT ----
