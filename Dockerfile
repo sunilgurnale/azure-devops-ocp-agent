@@ -13,23 +13,20 @@ ENV _BUILDAH_STARTED_IN_USERNS="" \
     HOME=/home/default
  
 ARG AZP_AGENT_VERSION=4.269.0
-ARG CUSTOM_CA_B64
  
 USER root
  
-# Inject custom CA bundle if provided
-RUN if [ -n "$CUSTOM_CA_B64" ]; then \
-      echo "$CUSTOM_CA_B64" | base64 -d > /etc/pki/ca-trust/source/anchors/custom-ca.crt && \
-      update-ca-trust; \
-    fi
- 
 # Install only required packages (no upgrade)
 RUN dnf install -y --setopt=tsflags=nodocs \
-        git \
-        curl \
-        tar \
-        jq \
+    git \
+    curl \
+    tar \
+    jq \
+    ca-certificates \
     && dnf clean all
+ 
+# Ensure base trust store exists
+RUN update-ca-trust
  
 # Create work directory
 RUN mkdir -p "$AZP_WORK" && \
@@ -50,7 +47,9 @@ RUN ./bin/installdependencies.sh
  
 USER 1001
  
+# ---- ONLY CHANGE: Refresh trust at container startup ----
 ENTRYPOINT ["/bin/bash", "-c", "\
+update-ca-trust && \
 ./bin/Agent.Listener configure --unattended \
   --agent \"${AZP_AGENT_NAME}-${HOSTNAME}\" \
   --url \"$AZP_URL\" \
