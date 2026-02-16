@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8/podman:latest 
+FROM registry.access.redhat.com/ubi8/dotnet-60-runtime:latest
 
 # These should be overridden in template deployment to interact with Azure service
 ENV AZP_URL=http://dummyurl \
