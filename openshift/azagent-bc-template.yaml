@@ -4,58 +4,73 @@ metadata:
   name: azure-devops-ocp-agent-bc-template
   annotations:
     description: "Azure Devops Openshift self hosted agent buildconfig"
-    tags: "azure-devops-ocp-agent"
-    iconClass: icon-dotnet
+  tags: "azure-devops-ocp-agent"
+  iconClass: icon-dotnet
   description: "Build your custom Azure Agent for an OpenShift cluster."
-  
+ 
 parameters:
-- description: Namespace
-  name: NAMESPACE
-  required: true
-- description: GIT URL For Dockerfile
-  name: GIT_URL
-  required: true
-  value: https://github.com/bfarr-rh/azure-devops-ocp-agent.git
-- description: OpenShift client binary version to install
-  name: OPENSHIFT_VERSION
-  value: "4.9.7"
-- description: Azure agent install version
-  name: AZP_AGENT_VERSION
-  value: "2.187.2"
+  - name: NAMESPACE
+    description: Namespace name
+    required: true
+ 
+  - name: GIT_URL
+    description: GIT URL For Dockerfile
+    required: true
+    value: https://github.com/sunilgurnale/azure-devops-ocp-agent.git
+ 
+  - name: OPENSHIFT_VERSION
+    description: OpenShift client binary version to install
+    value: "4.9.7"
+ 
+  - name: AZP_AGENT_VERSION
+    description: Azure agent install version
+    value: "2.187.2"
+ 
+  - name: CUSTOM_CA_CERT
+    description: "Optional custom CA certificate (PEM format)"
+    required: false
+ 
 objects:
-- apiVersion: image.openshift.io/v1
-  kind: ImageStream
-  metadata:
-    labels:
-      build: azure-devops-ocp-agent
-    name: azure-devops-ocp-agent
-    namespace: "${NAMESPACE}"
-  spec:
-    lookupPolicy:
-      local: true
-- kind: BuildConfig
-  apiVersion: v1
-  metadata:
-    labels:
-      build: azure-devops-ocp-agent
-    name: azure-devops-ocp-agent
-    namespace: "${NAMESPACE}"
-  spec:
-    source:
-      git:
-        uri: ${GIT_URL}
-      type: Git
-    output:
-      to:
-        kind: ImageStreamTag
-        name: azure-devops-ocp-agent:latest
-    strategy:
-      dockerStrategy:
-        dockerfilePath: Dockerfile
-        imageOptimizationPolicy: SkipLayers
-        buildArgs:
-          - name: OPENSHIFT_VERSION
-            value: "${OPENSHIFT_VERSION}"
-          - name: AZP_AGENT_VERSION
-            value: "${AZP_AGENT_VERSION}"
-      type: Docker
+ 
+  - apiVersion: image.openshift.io/v1
+    kind: ImageStream
+    metadata:
+      labels:
+        build: azure-devops-ocp-agent
+      name: azure-devops-ocp-agent
+      namespace: "${NAMESPACE}"
+    spec:
+      lookupPolicy:
+        local: true
+ 
+  - apiVersion: build.openshift.io/v1
+    kind: BuildConfig
+    metadata:
+      labels:
+        build: azure-devops-ocp-agent
+      name: azure-devops-ocp-agent
+      namespace: "${NAMESPACE}"
+    spec:
+      source:
+        git:
+          uri: ${GIT_URL}
+        type: Git
+ 
+      output:
+        to:
+          kind: ImageStreamTag
+          name: azure-devops-ocp-agent:latest
+ 
+      strategy:
+        dockerStrategy:
+          dockerfilePath: Dockerfile
+          imageOptimizationPolicy: SkipLayers
+          buildArgs:
+            - name: OPENSHIFT_VERSION
+              value: "${OPENSHIFT_VERSION}"
+            - name: AZP_AGENT_VERSION
+              value: "${AZP_AGENT_VERSION}"
+            - name: CUSTOM_CA_CERT
+              value: "${CUSTOM_CA_CERT}"
+        type: Docker
+ 
